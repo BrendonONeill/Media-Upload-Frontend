@@ -1,18 +1,10 @@
 import 'dotenv/config'
 import express from "express"
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import {fileURLToPath} from 'url';
 import cors from 'cors'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
-import upload from "./util/multer.js";
-import fileAndKeyValidator from "./util/fileValidator.js";
 import errorHandler from "./util/errorHandler.js";
-import { v4 as uuidv4 } from 'uuid';
-import { s3 } from "./util/aws.js";
-import logger from './util/logging.js';
-import { checkDbSize, updateDbSize } from './util/db.js';
-import uploadFilesBackOff from './util/uploadRetries.js';
+
 
 const app = express()
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -48,283 +40,58 @@ app.get("/", (req,res) => {
     res.sendFile(join(__dirname, 'index.html'));
 });
 
-app.get("/policy", (req,res) => { 
-    const __dirname = dirname(fileURLToPath(import.meta.url));
-    res.sendFile(join(__dirname, 'policy.html'));
-});
-
 app.post("/fakeuploadsmall", cors(corsOptions), async (req,res) => {
-       
-    res.status(200).json({message: `File was successfully uploaded`});
+    try {
+        await wait(3000);
+        let number = randomNumber()
+        console.log(number)
+        if(number < 7)
+        {
+            resolve("success")
+            console.log("passed")
+            res.status(200).json({message: `File was successfully uploaded`});
+        }
+        else
+        {
+            let err =  new Error("wasn't able to upload file, Try again.")
+            err.status = 400
+            err.passKeyFailed = false
+            throw err
+        }      
+    } catch (error) {
+        console.log("failed")
+        let returnErr = errorHandler(error)
+        res.status(returnErr.status).json(returnErr)
+    }
 })
 
 app.post("/fakeuploadlarge", cors(corsOptions), async (req,res) => {
-       
+    
     res.status(200).json({message: `File was successfully uploaded`});
 })
 
 app.post("/fakestartmultipartupload", cors(corsOptions), async (req,res) => {
-       
+    await wait(1500);
     res.status(200).json({message: `File was successfully uploaded`});
 })
 
-app.post("/fakeuploadchunk", (req,res) => {
+app.post("/fakeuploadchunk", async (req,res) => {
+        await wait(3000);
         res.status(200).json({message: `File was successfully uploaded`});
 })
 
 app.post("/fakefinishmultipartupload", cors(corsOptions), async (req,res) => {
-       
+    await wait(1200);
     res.status(200).json({message: `File was successfully uploaded`});
 })
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-
-app.get("/idgen", (req,res) => {
-    let uuid = uuidv4()
-    const id = uuid.slice(0,6)
-    res.status(200).json({id})
-})
-
-
-
-app.post("/smalluploads3",cors(corsOptions), upload.single('file'), async (req, res) => {
- 
-    try {
-       console.log("/////////////////////////////////////////////// SMALL Started //////////////////////////////////////////////////////")
-       let {dbErr, count}  = await checkDbSize()
-       if(dbErr)
-       {
-        throw dbErr
-       }
-       else
-       {
-        if(count > process.env.DB_LIMIT)
-        {
-            throw new Error("File storage is full, please try again later.");
-        }
-       }
-       let err = fileAndKeyValidator(req, "single")
-       if(err)
-       {
-        throw err
-       }
-       const bucketName = process.env.BUCKET_NAME
-       const params = {
-            Bucket: bucketName,
-            Key: `${req.body.id}-${req.file.originalname}`,
-            ContentType: req.file.mimetype
-       }
-       const command = new PutObjectCommand(params);
-
-       let url = await getSignedUrl(s3,command, {expiresIn: 3600 })
-       if(!url)
-        {
-            throw new Error("wasn't able to get presigned url");
-        }
-        let a = await uploadFilesBackOff(fetch(url,{method: 'PUT', body: req.file.buffer, headers: { 'Content-Type':req.file.mimetype}}))
-        if(!a.ok)
-        {
-            let err =  new Error("wasn't able to upload file")
-            err.status = 400
-            err.passKeyFailed = false
-            throw err
-        }
-        logger({status: 200, message:"File was successfully uploaded", id:req.body.id, file: req.file.originalname},"main",null)
-        console.log("/////////////////////////////////////////////// SMALL Uploaded //////////////////////////////////////////////////////")
-        await updateDbSize(req.body.id,req.file.size,req.file.originalname)
-        res.status(200).json({message: `File was successfully uploaded`});
-    } catch (error) {
-        let returnErr = errorHandler(error)
-        logger({status: error.status, message:error.message, id:req.body.id, file: req.file.originalname},"error", "smalluploads3/index.js")
-        res.status(returnErr.status).json(returnErr)
-    }
-})
-
-
-
-
-
-
-app.post("/startMultipartUpload",cors(corsOptions), async (req, res) => {
-    try {
-       console.log("/////////////////////////////////////////////// START MULTIPART //////////////////////////////////////////////////////")
-       let {dbErr, count}  = await checkDbSize()
-       if(dbErr)
-       {
-        throw dbErr
-       }
-       else
-       {
-        if(count > process.env.DB_LIMIT)
-        {
-            throw new Error("File storage is full, please try again later.");
-        }
-       }
-       let err = fileAndKeyValidator(req, "multipartStart")
-       if(err)
-       {
-        throw err
-       }
-
-        let key = req.body.name
-        const bucketName = process.env.BUCKET_NAME
-
-        const params = {
-            Bucket: bucketName,
-            Key: `${req.body.id}-${key}`,
-        }
-
-        const command = new CreateMultipartUploadCommand(params)
-        const multipartUpload = await s3.send(command);
-        if(multipartUpload['$metadata'].httpStatusCode === 200)
-        {
-             logger({status: 200, message:"Multipart has started", id:req.body.id, file: req.body.name},"main",null)
-            res.status(200).json({message: `Files were successfully uploaded`, data: "", uploadId: multipartUpload.UploadId})
-        }
-        else
-        {
-            let err = new Error("Files failed to uploaded")
-            err.status = 503
-            throw err
-        }
-    } catch (error) {
-        let returnErr = errorHandler(error)
-        logger({status: error.status, message:error.message, id:req.body.id, file: req.body.name},"error", "startMultipartUpload/index.js")
-        res.status(returnErr.status).json(returnErr)
-    }
-})
-
-
-app.post("/uploadpartss3",cors(corsOptions), upload.single('file'), async (req, res) => {
-    try {
-        console.log("/////////////////////////////////////////////// MULTIPART Upload //////////////////////////////////////////////////////")
-        let err = fileAndKeyValidator(req, "multipart")
-        if(err)
-        {
-            throw err
-        }
-        const bucketName = process.env.BUCKET_NAME
-
-        const params = {
-            Bucket: bucketName,
-            Key: `${req.body.id}-${req.body.name}`,
-            UploadId: req.body.uploadId,
-            PartNumber: req.body.partNumber,
-        }
-        
-        const command = new UploadPartCommand(params)
-
-        let url = await getSignedUrl(s3,command, {expiresIn: 3600 })
-        if(!url)
-        {
-            let err =  new Error("wasn't able to get presigned url");
-            err.status = 503
-            throw err
-        }
-        let resa = await uploadFilesBackOff(fetch(url,{method: 'PUT', body: req.file.buffer, headers: { 'Content-Type':req.file.mimetype}})) 
-        if(resa.status === 200)
-        {
-            const Etag = resa.headers.get('ETag')
-            res.status(200).json({message: `Files were successfully uploaded`, data: "", Etag})
-        }
-        else
-        {
-            let err =  new Error("failed to upload");
-            err.status = 400
-            err.passKeyFailed = false
-            throw err
-        }
-    } catch (error) {
-        let returnErr = errorHandler(error)
-        logger({status: error.status, message:error.message, id:req.body.id, file: req.body.name},"error","uploadpartss3/index.js")
-        res.status(returnErr.status).json(returnErr)
-    }
-})
-
-
-app.post("/finishMultipartUpload",cors(corsOptions), upload.single('file'), async (req, res) => {
-    try {
-        console.log("/////////////////////////////////////////////// MULTIPART End //////////////////////////////////////////////////////")
-        let err = fileAndKeyValidator(req, "multipartEnd")
-        if(err)
-        {
-            throw err
-        }
-        let Parts = []
-        for(let i = 0; i < req.body.ETag.length; i++)
-        {
-            Parts.push({ETag: req.body.ETag[i], PartNumber: req.body.PartNumber[i]})
-        }
-        const bucketName = process.env.BUCKET_NAME
-        const params = {
-            Bucket: bucketName,
-            Key: `${req.body.id}-${req.body.name}`,
-            UploadId: req.body.uploadId,
-            MultipartUpload: { Parts: Parts}
-        }
-    
-        const command = new CompleteMultipartUploadCommand(params);
-
-        let resa = await s3.send(command)
-        if(resa['$metadata'].httpStatusCode === 200)
-        {
-            //await updateDbSize(req.body.id,req.body.size,req.body.name)
-            logger({status: 200, message:"Multipart has completed", id:req.body.id, file: req.body.name},"main",null)
-            res.status(200).json({message: `Files were successfully uploaded`})
-        }
-        else
-        {
-            let err =  new Error("failed to upload file");
-            err.status = 501
-            throw err
-        }
-        
-
-
-    } catch (error) {
-        let returnErr = errorHandler(error)
-        logger({status: error.status, message:error.message, id:req.body.id, file: req.body.name},"error","finishedMultipartUpload/index.js")
-        res.status(returnErr.status).json(returnErr)
-    }
-})
-
-app.post("/abortMultipartUpload",cors(corsOptions), upload.single('file'), async (req, res) => {
-    try {
-        console.log("/////////////////////////////////////////////// MULTIPART Aborted //////////////////////////////////////////////////////")
-        let err = fileAndKeyValidator(req, "multipartEnd")
-        if(err)
-        {
-            throw err
-        }
-        const bucketName = process.env.BUCKET_NAME
-        const params = {
-            Bucket: bucketName,
-            Key: `${req.body.id}-${req.body.name}`,
-            UploadId: req.body.uploadId,
-        }
-    
-        const command = new AbortMultipartUploadCommand(params);
-
-        let resa = await s3.send(command)
-        if(resa['$metadata'].httpStatusCode === 204){
-            logger({status: 204, message:"MultipartUpload was aborted", id:req.body.id, file: req.body.name},"main",null)
-            res.status(204).json({message: `MultipartUpload was aborted`, data: ""})
-        }
-        else
-        {
-            let err = new Error("Abort failed")
-            err.status = 500
-            throw err
-        }
-    } catch (error) {
-        let returnErr = errorHandler(error)
-        logger({status: error.status, message:error.message, id:req.body.id, file: req.body.name},"error","abortMultipartUpload/index.js")
-        res.status(returnErr.status).json(returnErr)
-    }
-})
-
-
-
+function randomNumber() {
+   return Math.round(Math.random() * 10)
+}
 
 app.use((err,req,res,next) => {
   console.error('An error occurred:');

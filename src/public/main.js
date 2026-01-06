@@ -547,11 +547,13 @@ async function smallUpload(smallFile)
         }
         else
         {
+            listMemoryUploads = listMemoryUploads + smallFile.size
+            calculateUpload(null)
             let error = await res.json()
             throw error.message
         }
     } catch (error) {
-        return {data: smallFile.name, success: false, error: error, passKeyFailed: passKeyFailed}
+        return {data: smallFile.name, success: false, error: error, passKeyFailed: false}
     }
 }
 
@@ -580,7 +582,6 @@ try {
    {
     throw error
    }
-   debugger
    returnObj = await finishMultipartUpload(largeFile,passKeyFailed)
 
    let complete = returnObj.uploaded
@@ -599,7 +600,6 @@ try {
     return errorObj       
 }
 
-   
 }
 
 
@@ -631,9 +631,8 @@ async function startMultipartUpload(largeFile, passKeyFailed)
 async function partsMultipartUpload(largeFile, passKeyFailed)
 {
     const returnObj = {}
-    for (const chunk of largeFile.mediaChunks.entries()) {
-        let formData = new FormData();
-        try {
+    for (const [index,chunk] of largeFile.mediaChunks.entries()) {
+            try {
             let res = await fetch("/fakeuploadchunk",{ method: "POST",body: JSON.stringify({fileName: largeFile.name}), headers: {'Content-Type': 'application/json'} })
             
             if(res.ok)
