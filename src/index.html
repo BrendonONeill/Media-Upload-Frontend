@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kirsty & Niall</title>
+    <title>Media Upload Demo</title>
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="/style.css">
     <script defer type="module"  src="/main.js"></script>
@@ -15,9 +15,8 @@
 
     </nav>
     <header>
-        <h1 class="hero">Kirsty</h1>
-        <p class="hero">& Niall's</p>
-        <p class="hero">Wedding upload</p>
+
+        <p class="hero">Media Upload Demo</p>
         <div class="hero-image">
         </div>
     </header>
@@ -30,13 +29,13 @@
         <button class="notify-error-button"><img src="./info-error.svg" alt="" width="10" height="10" ></button>
     </div>
     <div class="information">
-        <p>We'd be so grateful if you could share your cherished photos & videos from our special day, if you are on PC just drag and drop your file's on dotted line box or click the browse button and select the files to upload.</p>
+        <p>This is a demo of the Media upload application as I wanted to have a live demo but didn't want to handle random people filling up my S3 bucket. So instead I created this demo version that the frontend is the same I just updated how the backend handles uploads.</p>
         <p>You can also click the add
             files buttons just underneath.</p>
     </div>
 
     <main>
-        <form method="post" enctype="multipart/form-data">
+        <form method="post">
             <div class="file-uploader">
                 <div class="uploader-header">
                     <h2 class="uploder-title">FILE UPLOAD</h2>
@@ -56,9 +55,6 @@
                         name="files" hidden>
                 </div>
             </div>
-
-            <label class="passkey-label" for="passkey">Passkey: <input type="text" class="passkey" id="passkey" required
-                    name="passkey"></label>
             <input class="upload" type="submit" id="form-submit" value="Upload">
         </form>
     </main>
@@ -90,8 +86,7 @@
         </div>
     </div>
     <footer>
-        <p class="footer-text">Kirsty & Niall 2025</p>
-        <a href="https://kirsty-and-niall.love/policy" target="_blank">Upload Policy</a>
+        <p class="footer-text">Media Upload Demo 2026</p>
     </footer>
 </body>
 

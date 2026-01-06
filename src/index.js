@@ -14,8 +14,6 @@ import logger from './util/logging.js';
 import { checkDbSize, updateDbSize } from './util/db.js';
 import uploadFilesBackOff from './util/uploadRetries.js';
 
-
-
 const app = express()
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -23,7 +21,8 @@ app.use(express.static(__dirname + '/public'));
 app.use(express.json({}));
 app.use(express.urlencoded({ extended: true }));
 
-var whitelist = ["https://kirsty-and-niall.love", "http://kirsty-and-niall.love"]
+
+var whitelist = ["https://upload.ko-do.dev","http://localhost:3000"]
 
 const  corsOptions = {
     origin: function (origin, callback){
@@ -53,6 +52,32 @@ app.get("/policy", (req,res) => {
     const __dirname = dirname(fileURLToPath(import.meta.url));
     res.sendFile(join(__dirname, 'policy.html'));
 });
+
+app.post("/fakeuploadsmall", cors(corsOptions), async (req,res) => {
+       
+    res.status(200).json({message: `File was successfully uploaded`});
+})
+
+app.post("/fakeuploadlarge", cors(corsOptions), async (req,res) => {
+       
+    res.status(200).json({message: `File was successfully uploaded`});
+})
+
+app.post("/fakestartmultipartupload", cors(corsOptions), async (req,res) => {
+       
+    res.status(200).json({message: `File was successfully uploaded`});
+})
+
+app.post("/fakeuploadchunk", (req,res) => {
+        res.status(200).json({message: `File was successfully uploaded`});
+})
+
+app.post("/fakefinishmultipartupload", cors(corsOptions), async (req,res) => {
+       
+    res.status(200).json({message: `File was successfully uploaded`});
+})
+
+
 
 app.get("/idgen", (req,res) => {
     let uuid = uuidv4()

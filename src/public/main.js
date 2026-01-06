@@ -25,7 +25,7 @@ const loadingtext = document.querySelector(".loading-text")
 const block = "/video.svg"
 const progressBar = document.querySelector(".progress-bar")
 const fileMemory = document.querySelector(".files-memory")
-let id = ""
+let id = "123"
 
 
 let listMemory = 0
@@ -323,6 +323,7 @@ function filterMedia(data, media)
 
 // Form submit 
 formSubmit.addEventListener("click", async (e) => {
+    
     calculateUpload()
     e.preventDefault()
     if(media.length == 0)
@@ -330,14 +331,6 @@ formSubmit.addEventListener("click", async (e) => {
         errorFlashCard({message: "No Files were added",nofiles: true})
         return
     }
-    if(passkey.value.trim() != "")
-    {
-        let banned = checkIfBanned()
-        if(banned)
-        {
-            errorFlashCard({message:`Try again at ${banned}`, wrongKey: true})
-            return  
-        }
         let uploadData = []
         loadingBG.classList.remove("notify-hide")
         notifyError.classList.add("notify-hide")
@@ -370,16 +363,9 @@ formSubmit.addEventListener("click", async (e) => {
         globalUploadData = uploadData
         removeFromList(uploadData)
         successfulFlashCard(uploadData)
-        document.cookie = "passkey=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-        localStorage.removeItem("passkey")
         listMemoryUploads = 0
         handleFiles([])
-        return
-    }
-    else
-    {
-        errorFlashCard({message:"Passkey wasn't entered.", wrongKey: true})
-    }    
+        return   
 })
 
 async function passKeyCheck(uploadData,fn,file)
@@ -387,18 +373,6 @@ async function passKeyCheck(uploadData,fn,file)
    
     try {
         let returnedValue = await fn(file)
-        if(returnedValue.passKeyFailed)
-        {
-            let banned = passkeyFail()
-            if(banned)
-            {
-                throw new Error(banned)
-            }
-            else
-            {
-                throw new Error(returnedValue.error.message)
-            }
-        }
         uploadData.push(returnedValue)
         return uploadData
        } catch (error) {
@@ -561,15 +535,10 @@ function  calculateUpload(file)
 
 async function smallUpload(smallFile)
 {
-    let formData = new FormData();
-    formData.append("passkey",passkey.value.trim())
-    formData.append("file", smallFile);
-    formData.append("id", id)
-    let passKeyFailed = false
-    
+    let data = {test:"testing"}
     try {
         calculateUpload(smallFile.name)
-        let res = await fetch("/smalluploads3",{ method: "POST",body: formData, headers: {Authorization: `Bearer ${passkey.value.trim()}`}})
+        let res = await fetch("/fakeuploadsmall",{ method: "POST", body: JSON.stringify(data), headers: {'Content-Type': 'application/json'} });
         if(res.ok)
         {   
             listMemoryUploads = listMemoryUploads + smallFile.size
@@ -579,11 +548,6 @@ async function smallUpload(smallFile)
         else
         {
             let error = await res.json()
-            if(error.passKeyFailed)
-            {
-                passKeyFailed = true
-                throw new Error(error.message)
-            } 
             throw error.message
         }
     } catch (error) {
@@ -596,27 +560,19 @@ async function largeFileUpload(largeFile)
     let passKeyFailed = false
     let error = null
     let errorObj = null
-    const chunkData= {
-        ETag: [],
-        PartNumber: []
-    }
-    let uploadId = null
 try {
    calculateUpload(largeFile.name)
    let returnObj = await startMultipartUpload(largeFile, passKeyFailed)
-   uploadId = returnObj.uploadId
    passKeyFailed = returnObj.passKeyFailed
    error = returnObj.error
    errorObj = returnObj.errorObj
+   if(error)
+   {
+    throw error
+   }
+
    
-
-   if(error)
-   {
-    throw error
-   }
-
-
-   returnObj = await partsMultipartUpload(largeFile, uploadId, passKeyFailed)
+   returnObj = await partsMultipartUpload(largeFile, passKeyFailed)
    passKeyFailed = returnObj.passKeyFailed
    error = returnObj.error
    errorObj = returnObj.errorObj
@@ -624,10 +580,8 @@ try {
    {
     throw error
    }
-   chunkData.ETag = returnObj.chunkData.ETag
-   chunkData.PartNumber = returnObj.chunkData.PartNumber
-
-   returnObj = await finishMultipartUpload(largeFile,uploadId,chunkData,passKeyFailed)
+   debugger
+   returnObj = await finishMultipartUpload(largeFile,passKeyFailed)
 
    let complete = returnObj.uploaded
    passKeyFailed = returnObj.passKeyFailed
@@ -653,11 +607,10 @@ async function startMultipartUpload(largeFile, passKeyFailed)
 {
     const returnObj = {}
     try {
-        let startres = await fetch("/startMultipartUpload",{ method: "POST",body: JSON.stringify({name:`${largeFile.name}`, size:largeFile.size,id:id}), headers: {Authorization: `Bearer ${passkey.value.trim()}`, "Content-Type": "application/json"}})
+        let startres = await fetch("/fakestartmultipartupload",{ method: "POST",body: JSON.stringify({name:`${largeFile.name}`, size:largeFile.size, id:id}), headers: {"Content-Type": "application/json"}})
         if(startres.ok)
         {
-            let {uploadId: id} = await startres.json()
-            returnObj.uploadId =  id
+            await startres.json()
             returnObj.passKeyFailed = false
             returnObj.error = returnObj.errorObj = null
             return returnObj
@@ -665,11 +618,6 @@ async function startMultipartUpload(largeFile, passKeyFailed)
         else
         {
             let error = await startres.json()
-            console.info("-----------",error)
-            if(error.passKeyFailed)
-            {
-                passKeyFailed = true
-            } 
             throw new Error(error.message)
         }    
     } catch (error) {
@@ -680,31 +628,18 @@ async function startMultipartUpload(largeFile, passKeyFailed)
     }
 }
 
-async function partsMultipartUpload(largeFile, uploadId, passKeyFailed)
+async function partsMultipartUpload(largeFile, passKeyFailed)
 {
-    const chunkData= {
-        ETag: [],
-        PartNumber: []
-    }
     const returnObj = {}
-    for (const [index,chunk] of largeFile.mediaChunks.entries()) {
+    for (const chunk of largeFile.mediaChunks.entries()) {
         let formData = new FormData();
-        formData.append("passkey",passkey.value)
-        formData.append("partNumber", index+1)
-        formData.append("file", chunk);
-        formData.append("name",largeFile.name)
-        formData.append("uploadId", uploadId)
-        formData.append("id", id)
         try {
-            let res = await fetch("/uploadpartss3",{ method: "POST",body: formData, headers: {Authorization: `Bearer ${passkey.value.trim()}`}})
+            let res = await fetch("/fakeuploadchunk",{ method: "POST",body: JSON.stringify({fileName: largeFile.name}), headers: {'Content-Type': 'application/json'} })
             
             if(res.ok)
             {
                 listMemoryUploads = listMemoryUploads + chunk.size
                 calculateUpload(null)
-                let data = await res.json();
-                chunkData.ETag.push(data.Etag)
-                chunkData.PartNumber.push(index+1)
             }
             else
             {
@@ -723,24 +658,19 @@ async function partsMultipartUpload(largeFile, uploadId, passKeyFailed)
             return returnObj
         }
     }
-    returnObj.chunkData = chunkData
     returnObj.passKeyFailed = false
     returnObj.error = returnObj.errorObj = null
     return returnObj
 }
 
-async function finishMultipartUpload(largeFile,uploadId,chunkData, passKeyFailed)
+async function finishMultipartUpload(largeFile, passKeyFailed)
 {
     const returnObj = {}
     let formData = new FormData();
     formData.append("name",largeFile.name)
-    formData.append("uploadId", uploadId)
-    formData.append("id", id)
     formData.append("size",largeFile.size)
-    chunkData.ETag.forEach(e => formData.append("ETag", e))
-    chunkData.PartNumber.forEach(p => formData.append("PartNumber", p))
     try {
-        let endres = await fetch("/finishMultipartUpload",{ method: "POST",body: formData, headers: {Authorization: `Bearer ${passkey.value.trim()}`}})
+        let endres = await fetch("/fakefinishmultipartupload",{ method: "POST", body: JSON.stringify({test:"testing123"}), headers: {'Content-Type': 'application/json'}})
         if(endres.ok)
         {
            await endres.json()
@@ -789,147 +719,5 @@ async function abortMultiPartUpload(uploadId, key)
     }
 }
 
-async function getID() {
-    const userId = localStorage.getItem('id');
-    if (userId) {
-        id = userId;
-    } else {
-        const res = await fetch("/idgen");
-        const data = await res.json();
-        localStorage.setItem("id", data.id);
-        id = data.id;
-    }
-}
 
-
-getID()
-
-function checkIfBanned()
-{
-    let ban = null;
-    ban = localStorage.getItem('ban');
-    //check ban date compare to date now
-    if(ban){
-        let now = new Date(Number(ban))
-        return `${now.getHours()}:${now.getMinutes()}`
-    }
-    ban = getCookie('ban')
-    if(ban){
-        let now = new Date(Number(ban))
-        return `${now.getHours()}:${now.getMinutes()}`
-    }
-}
-
-function banChecker(data)
-{
-    let count = Number(data[1]) + 1
-    if(count < 10)
-    {
-        return null
-    }
-    if(count >= 20)
-    {
-        setCookieItem("ban",`${Date.now() + 3600000}`,3600)
-        localStorage.setItem('ban', `${Date.now() + 3600000}`);
-        localStorageTimer(3600000)
-        var now = new Date(Date.now() + 3600000);
-        return `${now.getHours()}:${now.getMinutes()}`
-    }
-    if(count == 15)
-    {
-        setCookieItem("ban",`${Date.now() + 600000}`,600)
-        localStorage.setItem('ban', `${Date.now() + 600000}`);
-        localStorageTimer(600000)
-        var now = new Date(Date.now() + 600000);
-        return `${now.getHours()}:${now.getMinutes()}`
-    }
-    if(count == 10)
-    {
-        setCookieItem("ban",`${Date.now() + 120000}`,120)
-        localStorage.setItem('ban', `${Date.now() + 120000}`);
-        localStorageTimer(120000)
-        var now = new Date(Date.now() + 120000);
-        return `${now.getHours()}:${now.getMinutes()}`
-    }
-}
-
-function passkeyFail()
-{   
-    let pks = null
-    pks = localStorage.getItem('passkey');
-    if(!pks)
-    {
-        pks = getCookie('passkey')
-    }
-    if(pks)
-    {
-        let a = pks.split("-")
-        let banned = banChecker(a)
-        if(!banned)
-        {
-            if(a[0] !== id)
-            {
-                a[0] = id
-            }
-            a[1] = Number(a[1]) + 1
-            setCookieItem("passkey",`${a[0]}-${a[1]}`,604800)
-            localStorage.setItem('passkey', `${a[0]}-${a[1]}`);
-            return null
-        }
-        else
-        {
-            a[1] = Number(a[1]) + 1
-            setCookieItem("passkey",`${a[0]}-${a[1]}`,604800)
-            localStorage.setItem('passkey', `${a[0]}-${a[1]}`);
-            return `Try again at ${banned}`
-        }
-    }
-    localStorage.setItem('passkey', `${id}-1`);
-    setCookieItem("passkey",`${id}-1`,604800)
-    return null
-}
-
-
-
-function getCookie(name) {
-
-            const nameEQ = name + "=";
-            const ca = document.cookie.split(';');
-            for (let i = 0; i < ca.length; i++) {
-                let c = ca[i];
-                while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-                if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
-            }
-            return null;
-        }
-
-
-function setCookieItem(key,value,time) {
-            document.cookie = `${key}=${value}; max-age=${time}; path=/; SameSite=Lax`;
-}
-
-
-function localStorageTimer(time)
-{
-    setTimeout(() => {
-        let ban = null
-        ban = localStorage.getItem('ban');
-        if(ban){
-            localStorage.removeItem('ban');
-        }
-    },time)
-}
-
-function pass()
-{
-     const queryString = window.location.search;
-    const urlParams = new URLSearchParams(queryString);
-    const pk = urlParams.get('pk');
-    if(pk)
-    {
-        passkey.value = pk
-    }
-}
-
-pass()
 
