@@ -9,15 +9,20 @@ const notify = document.querySelector(".notify");
 const notifyError = document.querySelector(".notify-error");
 const notifyText = document.querySelector(".update");
 const notifyErrorText = document.querySelector(".update-error");
-const notifyButton = document.querySelector(".notify-button")
 const errorcontainerButton = document.querySelector(".error-list-container-button")
-const notifyErrorButton = document.querySelector(".notify-error-button")
+
 const errorbg = document.querySelector(".error-bg")
 const errorList = document.querySelector(".error-list")
 const loadingBG = document.querySelector(".loading-bg");
 const addFilesButton = document.querySelector(".add-files-button")
 const loadingUpdating = document.querySelector(".loading-updater")
 const loadingPercentage = document.querySelector(".loading-percentage")
+
+const infoErrorImg = document.querySelector(".info-error-img")
+const notifyErrorButton = document.querySelector(".notify-error-button")
+
+const notifyImg = document.querySelector(".notify-img")
+const notifyButton = document.querySelector(".notify-button")
 
 const loadingbar = document.querySelector(".loading-bar")
 const loadingtext = document.querySelector(".loading-text")  
@@ -717,6 +722,24 @@ async function abortMultiPartUpload(uploadId, key)
          return {data: key, success: false}
     }
 }
+
+notifyErrorButton.addEventListener("mouseover", () => {
+    infoErrorImg.src = "./info-hover.svg"
+})
+
+notifyErrorButton.addEventListener("mouseout", () => {
+    infoErrorImg.src = "./info-error.svg"
+})
+
+
+notifyButton.addEventListener("mouseover", () => {
+    notifyImg.src = "./x-hover.svg"
+})
+
+notifyButton.addEventListener("mouseout", () => {
+    notifyImg.src = "./x.svg"
+})
+
 
 
 

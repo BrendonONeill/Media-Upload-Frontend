@@ -66,7 +66,7 @@ app.post("/fakeuploadsmall", cors(corsOptions), async (req,res) => {
 })
 
 app.post("/fakeuploadlarge", cors(corsOptions), async (req,res) => {
-    
+    await wait(500);
     res.status(200).json({message: `File was successfully uploaded`});
 })
 
@@ -81,8 +81,28 @@ app.post("/fakeuploadchunk", async (req,res) => {
 })
 
 app.post("/fakefinishmultipartupload", cors(corsOptions), async (req,res) => {
-    await wait(1200);
-    res.status(200).json({message: `File was successfully uploaded`});
+    try {
+        await wait(1200);
+        let number = randomNumber()
+        console.log(number)
+        if(number < 7)
+        {
+            resolve("success")
+            console.log("passed")
+            res.status(200).json({message: `File was successfully uploaded`});
+        }
+        else
+        {
+            let err =  new Error("wasn't able to upload file, Try again.")
+            err.status = 400
+            err.passKeyFailed = false
+            throw err
+        }      
+    } catch (error) {
+        console.log("failed")
+        let returnErr = errorHandler(error)
+        res.status(returnErr.status).json(returnErr)
+    }
 })
 
 function wait(ms) {
